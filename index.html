@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MJSR Clinic Dispensary Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css?v=1.0" />
+</head>
+<body>
+
+<!-- Header -->
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 4v24M4 16h24" /><circle cx="16" cy="16" r="13" />
+        </svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-title">MJSR Clinic</div>
+        <div class="brand-sub">Dispensary & Visit Portal</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div id="connStatus" class="conn-pill" title="Backend status">
+        <span class="dot"></span><span class="label">Connecting…</span>
+      </div>
+      <button class="btn-ghost" onclick="loadDashboard()" title="Refresh">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Refresh
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="tabs">
+  <div class="tabs-inner">
+    <button class="tab active" data-tab="dashboard"><span class="tab-ico">📊</span>Dashboard</button>
+    <button class="tab" data-tab="submit"><span class="tab-ico">➕</span>New Visit</button>
+    <button class="tab" data-tab="log"><span class="tab-ico">📋</span>Visit Log</button>
+    <button class="tab" data-tab="stock"><span class="tab-ico">💊</span>Stock Levels</button>
+    <button class="tab" data-tab="config"><span class="tab-ico">⚙️</span>Config</button>
+  </div>
+</nav>
+
+<main>
+  <!-- ============== DASHBOARD TAB ============== -->
+  <section id="tab-dashboard" class="tab-panel active">
+    <div class="panel-head">
+      <h2>Clinic Dashboard</h2>
+      <div class="panel-head-meta"><span id="dashToday"></span></div>
+    </div>
+
+    <!-- Top KPI tiles -->
+    <div class="kpi-grid">
+      <div class="kpi kpi-blue">
+        <div class="kpi-lbl">Patients Today</div>
+        <div class="kpi-val" id="kpiVisitsToday">–</div>
+        <div class="kpi-sub" id="kpiVisitsSplit">Staff · Guest · Visitor · Dep.</div>
+      </div>
+      <div class="kpi kpi-green">
+        <div class="kpi-lbl">Meds Dispensed Today</div>
+        <div class="kpi-val" id="kpiDispensedToday">–</div>
+        <div class="kpi-sub" id="kpiDispensedWeek">Week: –</div>
+      </div>
+      <div class="kpi kpi-amber">
+        <div class="kpi-lbl">Low Stock Items</div>
+        <div class="kpi-val" id="kpiLowStock">–</div>
+        <div class="kpi-sub" id="kpiCritical">Critical: –</div>
+      </div>
+      <div class="kpi kpi-red">
+        <div class="kpi-lbl">Out of Stock</div>
+        <div class="kpi-val" id="kpiOutOfStock">–</div>
+        <div class="kpi-sub" id="kpiExpiry">Expiry flags: –</div>
+      </div>
+      <div class="kpi kpi-purple">
+        <div class="kpi-lbl">Follow-ups Pending</div>
+        <div class="kpi-val" id="kpiFollowUp">–</div>
+        <div class="kpi-sub" id="kpiReferrals">Referrals today: –</div>
+      </div>
+      <div class="kpi kpi-slate">
+        <div class="kpi-lbl">Total Active SKUs</div>
+        <div class="kpi-val" id="kpiTotalSkus">–</div>
+        <div class="kpi-sub" id="kpiInStock">In stock: –</div>
+      </div>
+    </div>
+
+    <!-- Main dashboard grid -->
+    <div class="dash-grid">
+      <!-- 7-day chart -->
+      <div class="card card-chart">
+        <div class="card-head"><h3>Visits — Last 7 Days</h3></div>
+        <div class="chart-wrap"><svg id="visitChart" viewBox="0 0 700 240" preserveAspectRatio="none"></svg></div>
+      </div>
+
+      <!-- Patient mix -->
+      <div class="card">
+        <div class="card-head"><h3>Patient Mix (7d)</h3></div>
+        <div id="patientMixList" class="bar-list"></div>
+      </div>
+
+      <!-- Top dispensed -->
+      <div class="card">
+        <div class="card-head"><h3>Top Dispensed (7d)</h3></div>
+        <div id="topMedsList" class="bar-list"></div>
+      </div>
+
+      <!-- Recent visits -->
+      <div class="card card-wide">
+        <div class="card-head">
+          <h3>Recent Visits</h3>
+          <button class="btn-link" onclick="switchTab('log')">View all →</button>
+        </div>
+        <div id="recentVisitsList" class="mini-table"></div>
+      </div>
+
+      <!-- Low stock alerts -->
+      <div class="card card-wide">
+        <div class="card-head">
+          <h3>Low Stock Alerts</h3>
+          <button class="btn-link" onclick="switchTab('stock')">Manage stock →</button>
+        </div>
+        <div id="lowStockList" class="mini-table"></div>
+      </div>
+
+      <!-- Expiry -->
+      <div class="card card-wide">
+        <div class="card-head"><h3>Expiry & Out of Stock</h3></div>
+        <div id="expiryList" class="mini-table"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== SUBMIT VISIT TAB ============== -->
+  <section id="tab-submit" class="tab-panel">
+    <div class="panel-head">
+      <h2>New Patient Visit</h2>
+      <div class="panel-head-meta">Doctor submission form</div>
+    </div>
+
+    <form id="visitForm" class="visit-form" onsubmit="event.preventDefault(); submitVisitForm();">
+      <!-- Section 1: Doctor + Patient -->
+      <div class="form-section">
+        <h3>1. Patient & Doctor</h3>
+        <div class="grid-2">
+          <div class="field">
+            <label>Doctor *</label>
+            <select id="fDoctor" required>
+              <option value="">Select doctor…</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Patient Type *</label>
+            <select id="fPatientType" required>
+              <option value="">Select type…</option>
+              <option value="Staff">Staff</option>
+              <option value="Guest">Guest</option>
+              <option value="Visitor">Visitor / Contractor</option>
+              <option value="Dependent">Dependent (Family)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Patient Name *</label>
+            <input type="text" id="fPatientName" required placeholder="Full name" />
+          </div>
+          <div class="field">
+            <label>Staff ID / Room / Contact</label>
+            <input type="text" id="fPatientId" placeholder="Employee ID, room no. or phone" />
+          </div>
+          <div class="field field-sm">
+            <label>Age</label>
+            <input type="number" id="fAge" min="0" max="120" />
+          </div>
+          <div class="field field-sm">
+            <label>Gender</label>
+            <select id="fGender">
+              <option value="">—</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Vital signs -->
+      <div class="form-section">
+        <h3>2. Vital Signs</h3>
+        <div class="grid-6">
+          <div class="field">
+            <label>BP Systolic</label>
+            <input type="number" id="fBpSys" placeholder="120" min="60" max="260" />
+          </div>
+          <div class="field">
+            <label>BP Diastolic</label>
+            <input type="number" id="fBpDia" placeholder="80" min="40" max="160" />
+          </div>
+          <div class="field">
+            <label>Pulse (bpm)</label>
+            <input type="number" id="fPulse" placeholder="72" min="30" max="220" />
+          </div>
+          <div class="field">
+            <label>Temp (°C)</label>
+            <input type="number" id="fTemp" step="0.1" placeholder="36.8" min="30" max="45" />
+          </div>
+          <div class="field">
+            <label>SpO2 (%)</label>
+            <input type="number" id="fSpo2" placeholder="98" min="50" max="100" />
+          </div>
+          <div class="field">
+            <label>Resp Rate</label>
+            <input type="number" id="fRespRate" placeholder="16" min="5" max="60" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Clinical -->
+      <div class="form-section">
+        <h3>3. Clinical Notes</h3>
+        <div class="field">
+          <label>Chief Complaint</label>
+          <input type="text" id="fChiefComplaint" placeholder="e.g. Headache for 2 days, fever since morning" />
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label>Symptoms / History</label>
+            <textarea id="fSymptoms" rows="3" placeholder="Onset, duration, associated symptoms…"></textarea>
+          </div>
+          <div class="field">
+            <label>Diagnosis (Provisional)</label>
+            <textarea id="fDiagnosis" rows="3" placeholder="e.g. Viral URTI, Sprain R-ankle, Dehydration"></textarea>
+          </div>
+        </div>
+        <div class="field">
+          <label>Treatment / Advice</label>
+          <textarea id="fTreatment" rows="2" placeholder="Rest, fluids, wound dressing done, etc."></textarea>
+        </div>
+      </div>
+
+      <!-- Section 4: Medicines -->
+      <div class="form-section">
+        <div class="section-head">
+          <h3>4. Medicines Issued</h3>
+          <button type="button" class="btn-primary" onclick="addMedRow()">+ Add Medicine</button>
+        </div>
+        <div id="medRows" class="med-rows"></div>
+        <div class="med-empty hint" id="medEmpty">No medicines added. Click "Add Medicine" if you dispensed any.</div>
+      </div>
+
+      <!-- Section 5: Follow-up -->
+      <div class="form-section">
+        <h3>5. Follow-up & Referral</h3>
+        <div class="grid-2">
+          <div class="field field-check">
+            <label class="chk-row">
+              <input type="checkbox" id="fFollowUp" />
+              <span>Follow-up required</span>
+            </label>
+          </div>
+          <div class="field field-check">
+            <label class="chk-row">
+              <input type="checkbox" id="fReferral" onchange="toggleReferral()" />
+              <span>Referral to hospital / specialist</span>
+            </label>
+          </div>
+          <div class="field" id="referralToWrap" style="display:none; grid-column: span 2;">
+            <label>Referred to</label>
+            <input type="text" id="fReferralTo" placeholder="e.g. Saidu Group of Hospitals — Orthopaedic" />
+          </div>
+          <div class="field" style="grid-column: span 2;">
+            <label>Additional Notes (Optional)</label>
+            <textarea id="fNotes" rows="2" placeholder="Any other info for the record"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="form-actions">
+        <button type="button" class="btn-ghost" onclick="resetVisitForm()">Reset</button>
+        <button type="submit" class="btn-primary btn-lg" id="submitVisitBtn">Submit Visit</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ============== VISIT LOG TAB ============== -->
+  <section id="tab-log" class="tab-panel">
+    <div class="panel-head">
+      <h2>Visit Log</h2>
+      <div class="panel-head-meta"><span id="logCount"></span></div>
+    </div>
+    <div class="filter-bar">
+      <input type="text" id="logSearch" placeholder="Search name, diagnosis, doctor, ID…" oninput="renderVisitLog()" />
+      <select id="logPatientType" onchange="renderVisitLog()">
+        <option value="">All types</option>
+        <option value="Staff">Staff</option>
+        <option value="Guest">Guest</option>
+        <option value="Visitor">Visitor</option>
+        <option value="Dependent">Dependent</option>
+      </select>
+      <select id="logDoctor" onchange="renderVisitLog()"><option value="">All doctors</option></select>
+      <input type="date" id="logDateFrom" onchange="renderVisitLog()" />
+      <input type="date" id="logDateTo" onchange="renderVisitLog()" />
+      <button class="btn-ghost" onclick="reloadVisits()">Reload</button>
+      <button class="btn-ghost" onclick="exportVisitsCsv()">Export CSV</button>
+    </div>
+    <div id="visitTableWrap" class="table-wrap"></div>
+  </section>
+
+  <!-- ============== STOCK LEVELS TAB ============== -->
+  <section id="tab-stock" class="tab-panel">
+    <div class="panel-head">
+      <h2>Stock Levels</h2>
+      <div class="panel-head-meta"><span id="stockCount"></span></div>
+    </div>
+    <div class="filter-bar">
+      <input type="text" id="stockSearch" placeholder="Search medicine name…" oninput="renderStockTable()" />
+      <select id="stockCategory" onchange="renderStockTable()"><option value="">All categories</option></select>
+      <select id="stockStatus" onchange="renderStockTable()">
+        <option value="">All statuses</option>
+        <option value="out">Out of stock</option>
+        <option value="critical">Critical (&lt;= MIN)</option>
+        <option value="low">Low (&lt;= PAR)</option>
+        <option value="ok">OK</option>
+      </select>
+      <button class="btn-ghost" onclick="reloadStock()">Reload</button>
+      <button class="btn-ghost" onclick="exportStockCsv()">Export CSV</button>
+    </div>
+    <div id="stockTableWrap" class="table-wrap"></div>
+  </section>
+
+  <!-- ============== CONFIG TAB ============== -->
+  <section id="tab-config" class="tab-panel">
+    <div class="panel-head">
+      <h2>Configuration</h2>
+      <div class="panel-head-meta">Admin PIN required for all changes</div>
+    </div>
+
+    <div class="config-grid">
+
+      <!-- Bootstrap & Seed -->
+      <div class="card">
+        <div class="card-head"><h3>System Bootstrap</h3></div>
+        <div class="card-body">
+          <p class="hint">First-time setup: create all sheet tabs in the linked Google Sheet, then load the 186 medicines from the March 2026 register.</p>
+          <div class="btn-row">
+            <button class="btn-primary" onclick="doBootstrap()">Bootstrap Sheets</button>
+            <button class="btn-primary" onclick="doSeed()">Seed 186 Medicines</button>
+          </div>
+          <div id="bootstrapStatus" class="inline-status"></div>
+        </div>
+      </div>
+
+      <!-- Category Pars -->
+      <div class="card card-wide">
+        <div class="card-head">
+          <h3>Category Par Levels</h3>
+          <span class="hint-tag">Applies to all medicines without individual overrides</span>
+        </div>
+        <div class="card-body">
+          <div id="categoryParsGrid" class="pars-grid"></div>
+          <div class="btn-row">
+            <button class="btn-primary" onclick="saveCategoryPars()">Save Category Pars</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Receive Stock -->
+      <div class="card">
+        <div class="card-head"><h3>Receive Stock (Stock IN)</h3></div>
+        <div class="card-body">
+          <div class="field">
+            <label>Medicine</label>
+            <select id="recvMedicine"><option value="">Select…</option></select>
+          </div>
+          <div class="field">
+            <label>Quantity Received</label>
+            <input type="number" id="recvQty" min="1" />
+          </div>
+          <div class="field">
+            <label>Reason / Batch Ref</label>
+            <input type="text" id="recvReason" placeholder="e.g. PO #234, April delivery" />
+          </div>
+          <button class="btn-primary" onclick="doReceive()">Receive Stock</button>
+        </div>
+      </div>
+
+      <!-- Stock Adjustment -->
+      <div class="card">
+        <div class="card-head"><h3>Stock Adjustment</h3></div>
+        <div class="card-body">
+          <div class="field">
+            <label>Medicine</label>
+            <select id="adjMedicine"><option value="">Select…</option></select>
+          </div>
+          <div class="field">
+            <label>Type</label>
+            <select id="adjType">
+              <option value="ADJUST">Correct absolute balance</option>
+              <option value="OUT">Write-off (damage/expiry)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label id="adjQtyLabel">New Balance</label>
+            <input type="number" id="adjQty" min="0" />
+          </div>
+          <div class="field">
+            <label>Reason</label>
+            <input type="text" id="adjReason" placeholder="e.g. Physical count correction, expired batch" />
+          </div>
+          <button class="btn-primary" onclick="doAdjustment()">Apply Adjustment</button>
+        </div>
+      </div>
+
+      <!-- Add Medicine -->
+      <div class="card">
+        <div class="card-head"><h3>Add New Medicine</h3></div>
+        <div class="card-body">
+          <div class="field"><label>Name *</label><input type="text" id="newMedName" /></div>
+          <div class="field"><label>Generic Name</label><input type="text" id="newMedGeneric" /></div>
+          <div class="field">
+            <label>Unit Type</label>
+            <select id="newMedUnit">
+              <option value="tablet_capsule">Tab/Cap</option>
+              <option value="syrup">Syrup</option>
+              <option value="injection">Injection</option>
+              <option value="infusion">Infusion</option>
+              <option value="topical">Topical</option>
+              <option value="drops">Drops</option>
+              <option value="sachet">Sachet</option>
+              <option value="dressing">Dressing</option>
+              <option value="consumable">Consumable</option>
+              <option value="solution">Solution</option>
+              <option value="equipment">Equipment</option>
+              <option value="supplement">Supplement</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <select id="newMedCat"></select>
+          </div>
+          <div class="field"><label>Opening Balance</label><input type="number" id="newMedBal" min="0" value="0" /></div>
+          <button class="btn-primary" onclick="doAddMedicine()">Add Medicine</button>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="card">
+        <div class="card-head"><h3>System Settings</h3></div>
+        <div class="card-body">
+          <div id="settingsList" class="settings-list"></div>
+        </div>
+      </div>
+
+      <!-- Audit Log -->
+      <div class="card card-wide">
+        <div class="card-head">
+          <h3>Audit Log</h3>
+          <button class="btn-ghost btn-xs" onclick="loadAudit()">Refresh</button>
+        </div>
+        <div id="auditList" class="mini-table"></div>
+      </div>
+
+      <!-- Admin PIN -->
+      <div class="card card-wide">
+        <div class="card-head"><h3>Admin PIN</h3></div>
+        <div class="card-body">
+          <p class="hint">Required for stock changes, medicine add/edit, and category par updates. Saved in browser for this session only.</p>
+          <div class="field"><label>Admin PIN</label><input type="password" id="adminPin" placeholder="4-digit PIN" /></div>
+          <button class="btn-ghost" onclick="savePinToSession()">Remember for session</button>
+          <span id="pinStatus" class="inline-status"></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<!-- Modal host -->
+<div id="modalHost" class="modal-host" style="display:none;">
+  <div class="modal">
+    <div class="modal-head"><h3 id="modalTitle"></h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<footer class="foot">
+  <span>MJSR Clinic Portal v1.0 · Samsons Group of Companies</span>
+  <span id="buildVer"></span>
+</footer>
+
+<script src="assets/seed_medicines.js?v=1.0"></script>
+<script src="assets/app.js?v=1.0"></script>
+</body>
+</html>
