@@ -480,17 +480,19 @@ table.data-table .row-actions button.danger:hover{ background: var(--red-soft); 
 /* ============== TOAST ============== */
 .toast{
   position: fixed; bottom: 24px; left: 50%;
-  transform: translateX(-50%) translateY(120%);
+  transform: translateX(-50%) translateY(200%);
+  opacity: 0;
+  pointer-events: none;
   background: var(--text); color: #fff;
   padding: 12px 20px;
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   font-size: 13px; font-weight: 600;
   z-index: 1000;
-  transition: transform .25s ease;
+  transition: transform .25s ease, opacity .25s ease;
   max-width: 90vw;
 }
-.toast.show{ transform: translateX(-50%) translateY(0); }
+.toast.show{ transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
 .toast.toast-err{ background: var(--red); }
 .toast.toast-ok{ background: var(--green); }
 
@@ -3090,7 +3092,7 @@ window.SEED_MEDICINES = [
 
 // ============== CONFIG ==============
 // IMPORTANT: replace with your actual Apps Script Web App URL after first deployment
-const API_URL = 'https://script.google.com/macros/s/AKfycby6jEdhMBQteJ_lfMC-HOsumuaIf2qB28NGyv75RjkqX0DY-gcOtqGusCVvap5VOdwK/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzEz3Bes0P0M6W559cvHvx6d6SNGK9grezdekn-1jwqidOKMbOZpaFttUq6-DYCHMk46w/exec';
 
 const CATEGORIES = [
   'antibiotic','analgesic','gi','antiallergy','fluid','steroid','cardiac',
