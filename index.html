@@ -584,6 +584,7 @@ table.data-table .row-actions button.danger:hover{ background: var(--red-soft); 
     <button class="tab" data-tab="submit"><span class="tab-ico">➕</span>New Visit</button>
     <button class="tab" data-tab="log"><span class="tab-ico">📋</span>Visit Log</button>
     <button class="tab" data-tab="stock"><span class="tab-ico">💊</span>Stock Levels</button>
+    <button class="tab" data-tab="movements"><span class="tab-ico">📦</span>Stock Movements</button>
     <button class="tab" data-tab="config"><span class="tab-ico">⚙️</span>Config</button>
   </div>
 </nav>
@@ -874,6 +875,133 @@ table.data-table .row-actions button.danger:hover{ background: var(--red-soft); 
   </section>
 
   <!-- ============== CONFIG TAB ============== -->
+
+  <!-- ============== STOCK MOVEMENTS TAB ============== -->
+  <section id="tab-movements" class="tab-panel">
+    <div class="panel-head">
+      <h2>Stock Movements</h2>
+      <div class="panel-head-meta">Receive stock, adjust balances, and bulk upload</div>
+    </div>
+
+    <div class="config-grid">
+
+      <!-- Receive Stock IN -->
+      <div class="card">
+        <div class="card-head"><h3>📥 Receive Stock (Stock IN)</h3></div>
+        <div class="card-body">
+          <div class="field">
+            <label>Medicine</label>
+            <select id="recvMedicine" onchange="updateRecvModeUI()"><option value="">Select…</option></select>
+          </div>
+          <div class="field">
+            <label>Receive by</label>
+            <select id="recvMode" onchange="updateRecvModeUI()">
+              <option value="units">Units (individual tablets / vials / pieces)</option>
+              <option value="boxes">Boxes (auto-converts using units-per-box)</option>
+            </select>
+          </div>
+          <div class="field" id="recvUnitRow">
+            <label>Quantity (units)</label>
+            <input type="number" id="recvQty" min="1" />
+            <span id="recvUpbInfo" class="hint" style="margin-top:3px"></span>
+          </div>
+          <div class="field" id="recvBoxRow" style="display:none">
+            <label>Number of Boxes Received</label>
+            <input type="number" id="recvBoxes" min="1" />
+          </div>
+          <div class="field">
+            <label>Reason / Batch Ref</label>
+            <input type="text" id="recvReason" placeholder="e.g. PO #234, April delivery" />
+          </div>
+          <button class="btn-primary" onclick="doReceive()">Receive Stock</button>
+        </div>
+      </div>
+
+      <!-- Stock Adjustment -->
+      <div class="card">
+        <div class="card-head"><h3>🔧 Stock Adjustment</h3></div>
+        <div class="card-body">
+          <div class="field">
+            <label>Medicine</label>
+            <select id="adjMedicine"><option value="">Select…</option></select>
+          </div>
+          <div class="field">
+            <label>Type</label>
+            <select id="adjType">
+              <option value="ADJUST">Correct absolute balance</option>
+              <option value="OUT">Write-off (damage / expiry / loss)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label id="adjQtyLabel">New Balance</label>
+            <input type="number" id="adjQty" min="0" />
+          </div>
+          <div class="field">
+            <label>Reason (required)</label>
+            <input type="text" id="adjReason" placeholder="e.g. Physical count correction, expired batch" />
+          </div>
+          <button class="btn-primary" onclick="doAdjustment()">Apply Adjustment</button>
+        </div>
+      </div>
+
+      <!-- Bulk Stock Upload -->
+      <div class="card card-wide">
+        <div class="card-head">
+          <h3>📦 Bulk Stock Upload</h3>
+          <span class="hint-tag">Upload a CSV file with medicine names/SNOs and quantities to add stock in bulk</span>
+        </div>
+        <div class="card-body">
+          <p class="hint">The file must have columns for <strong>Name</strong> (or SNO) and <strong>Qty</strong> (or Quantity / Balance / Received). The system will match against current medicines by name or SNO, preview the matches, and let you confirm before writing anything.</p>
+          <div class="field">
+            <label>Upload CSV File</label>
+            <input type="file" id="bulkFileInput" accept=".csv,.xlsx,.xls" onchange="handleBulkFile(this)" style="padding:6px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;cursor:pointer" />
+          </div>
+          <div class="field">
+            <label>Reason / Batch Reference</label>
+            <input type="text" id="bulkReason" placeholder="e.g. Monthly resupply April 2026, PO #456" />
+          </div>
+          <span id="bulkStatus" class="inline-status"></span>
+          <div id="bulkPreview" style="margin-top:16px"></div>
+          <div style="margin-top:12px">
+            <button class="btn-primary" id="bulkConfirmBtn" onclick="confirmBulkUpload()" style="display:none">Confirm and Upload All</button>
+          </div>
+          <div style="margin-top:14px;padding:12px;background:#f1f5f9;border-radius:8px;font-size:12px;color:#64748b">
+            <strong>CSV format example:</strong><br>
+            <code>Name,Qty</code><br>
+            <code>Tab Panadol 500mg,200</code><br>
+            <code>Inj Transim,50</code><br><br>
+            You can also use columns: <em>SNO, Particulars, Received, New Stock, Balance</em> — the system auto-detects common column names.<br>
+            For Excel files: save as CSV first via File &gt; Save As &gt; CSV.
+          </div>
+        </div>
+      </div>
+
+
+
+      <!-- Stock Movement Log -->
+      <div class="card card-wide">
+        <div class="card-head">
+          <h3>📋 Movement Log</h3>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="movLogType" onchange="renderMovementLog()" style="font-size:12px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:5px">
+              <option value="">All types</option>
+              <option value="IN">IN (received)</option>
+              <option value="OUT">OUT (dispensed)</option>
+              <option value="ADJUST">ADJUST (correction)</option>
+            </select>
+            <input type="text" id="movLogSearch" placeholder="Search medicine…" oninput="renderMovementLog()" style="font-size:12px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:5px;width:180px" />
+            <button class="btn-ghost btn-xs" onclick="reloadMovements()">Reload</button>
+            <button class="btn-ghost btn-xs" onclick="exportMovementsCsv()">CSV</button>
+          </div>
+        </div>
+        <div id="movLogWrap" class="table-wrap" style="max-height:420px;overflow-y:auto">
+          <div class="empty-state">Click Reload to load movement history.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
   <section id="tab-config" class="tab-panel">
     <div class="panel-head">
       <h2>Configuration</h2>
@@ -909,53 +1037,6 @@ table.data-table .row-actions button.danger:hover{ background: var(--red-soft); 
         </div>
       </div>
 
-      <!-- Receive Stock -->
-      <div class="card">
-        <div class="card-head"><h3>Receive Stock (Stock IN)</h3></div>
-        <div class="card-body">
-          <div class="field">
-            <label>Medicine</label>
-            <select id="recvMedicine"><option value="">Select…</option></select>
-          </div>
-          <div class="field">
-            <label>Quantity Received</label>
-            <input type="number" id="recvQty" min="1" />
-          </div>
-          <div class="field">
-            <label>Reason / Batch Ref</label>
-            <input type="text" id="recvReason" placeholder="e.g. PO #234, April delivery" />
-          </div>
-          <button class="btn-primary" onclick="doReceive()">Receive Stock</button>
-        </div>
-      </div>
-
-      <!-- Stock Adjustment -->
-      <div class="card">
-        <div class="card-head"><h3>Stock Adjustment</h3></div>
-        <div class="card-body">
-          <div class="field">
-            <label>Medicine</label>
-            <select id="adjMedicine"><option value="">Select…</option></select>
-          </div>
-          <div class="field">
-            <label>Type</label>
-            <select id="adjType">
-              <option value="ADJUST">Correct absolute balance</option>
-              <option value="OUT">Write-off (damage/expiry)</option>
-            </select>
-          </div>
-          <div class="field">
-            <label id="adjQtyLabel">New Balance</label>
-            <input type="number" id="adjQty" min="0" />
-          </div>
-          <div class="field">
-            <label>Reason</label>
-            <input type="text" id="adjReason" placeholder="e.g. Physical count correction, expired batch" />
-          </div>
-          <button class="btn-primary" onclick="doAdjustment()">Apply Adjustment</button>
-        </div>
-      </div>
-
       <!-- Add Medicine -->
       <div class="card">
         <div class="card-head"><h3>Add New Medicine</h3></div>
@@ -980,11 +1061,23 @@ table.data-table .row-actions button.danger:hover{ background: var(--red-soft); 
               <option value="other">Other</option>
             </select>
           </div>
+          <div class="field"><label>Category</label><select id="newMedCat"></select></div>
+          <div class="field"><label>Opening Balance (units)</label><input type="number" id="newMedBal" min="0" value="0" /></div>
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:10px 0"/>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#0d9488;margin-bottom:8px">Brand</div>
+          <div class="field"><label>Brand / Manufacturer</label><input type="text" id="newMedBrand" placeholder="e.g. GSK, Getz, Searle" /></div>
           <div class="field">
-            <label>Category</label>
-            <select id="newMedCat"></select>
+            <label>Brand Tier</label>
+            <select id="newMedBrandTier">
+              <option value="preferred">Preferred</option>
+              <option value="acceptable">Acceptable</option>
+              <option value="flagged">Flagged (low quality / unapproved)</option>
+            </select>
           </div>
-          <div class="field"><label>Opening Balance</label><input type="number" id="newMedBal" min="0" value="0" /></div>
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:10px 0"/>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#0d9488;margin-bottom:8px">Box Configuration</div>
+          <div class="field"><label>Units per Box</label><input type="number" id="newMedUpb" min="1" value="1" placeholder="e.g. 10 for strip of 10 tabs" /></div>
+          <div class="field"><label>Box Label</label><input type="text" id="newMedBoxLabel" placeholder="e.g. Strip of 10, Box of 5 vials" /></div>
           <button class="btn-primary" onclick="doAddMedicine()">Add Medicine</button>
         </div>
       </div>
@@ -3092,7 +3185,7 @@ window.SEED_MEDICINES = [
 
 // ============== CONFIG ==============
 // IMPORTANT: replace with your actual Apps Script Web App URL after first deployment
-const API_URL = 'https://script.google.com/macros/s/AKfycbzEz3Bes0P0M6W559cvHvx6d6SNGK9grezdekn-1jwqidOKMbOZpaFttUq6-DYCHMk46w/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycby6jEdhMBQteJ_lfMC-HOsumuaIf2qB28NGyv75RjkqX0DY-gcOtqGusCVvap5VOdwK/exec';
 
 const CATEGORIES = [
   'antibiotic','analgesic','gi','antiallergy','fluid','steroid','cardiac',
@@ -3124,7 +3217,10 @@ const state = {
   doctors: [],
   categoryPars: {},
   medRowCounter: 0,
-  booted: false
+  booted: false,
+  bulkRows: [],
+  bulkMatched: [],
+  movements: null
 };
 
 // ============== INITIALISATION ==============
@@ -3227,6 +3323,7 @@ function switchTab(tab){
   else if (tab === 'log') reloadVisits();
   else if (tab === 'stock') reloadStock();
   else if (tab === 'submit') prepareSubmitTab();
+  else if (tab === 'movements') { populateConfigSelects(); renderMovementLog(); }
   else if (tab === 'config') { loadAudit(); populateConfigSelects(); loadSettings(); }
 }
 
@@ -3415,22 +3512,27 @@ function addMedRow(){
   row.className = 'med-row';
   row.id = id;
   row.innerHTML =
-    '<select class="med-select" onchange="updateMedStock(\'' + id + '\')"><option value="">Select medicine…</option></select>' +
-    '<input type="number" class="med-qty" placeholder="Qty" min="1" value="1" />' +
+    '<select class="med-select" onchange="updateMedStock(\'' + id + '\')">' +
+    '<option value="">Select medicine…</option></select>' +
+    '<input type="number" class="med-qty" placeholder="Qty (units)" min="1" value="1" />' +
     '<div class="med-stock-tag">Bal: —</div>' +
     '<button type="button" class="btn-remove" onclick="removeMedRow(\'' + id + '\')" title="Remove">×</button>';
   host.appendChild(row);
 
-  // Populate the dropdown with in-stock meds
   const sel = row.querySelector('.med-select');
   const inStock = state.medicineList.filter(function(m){ return m.balance > 0; })
     .sort(function(a, b){ return a.name.localeCompare(b.name); });
   inStock.forEach(function(m){
     const opt = document.createElement('option');
     opt.value = m.sno;
-    opt.textContent = m.name + '  [bal: ' + m.balance + ']';
+    const flagLabel = m.brandTier === 'flagged' ? ' ⚠ FLAGGED BRAND' : (m.brandTier === 'acceptable' ? ' [acceptable]' : '');
+    opt.textContent = m.name + (m.brand ? ' — ' + m.brand : '') + '  [bal: ' + m.balance + ']' + flagLabel;
     opt.dataset.balance = m.balance;
     opt.dataset.name = m.name;
+    opt.dataset.brand = m.brand || '';
+    opt.dataset.brandTier = m.brandTier || 'preferred';
+    opt.dataset.unitsPerBox = m.unitsPerBox || 1;
+    if (m.brandTier === 'flagged') opt.style.color = '#dc2626';
     sel.appendChild(opt);
   });
 
@@ -3453,8 +3555,16 @@ function updateMedStock(id){
   const tag = row.querySelector('.med-stock-tag');
   const qtyInput = row.querySelector('.med-qty');
   if (opt && opt.dataset.balance) {
-    tag.textContent = 'Bal: ' + opt.dataset.balance;
-    qtyInput.max = opt.dataset.balance;
+    const bal = Number(opt.dataset.balance);
+    const upb = Number(opt.dataset.unitsPerBox) || 1;
+    let balText = 'Bal: ' + bal + ' units';
+    if (upb > 1) balText += ' (' + Math.floor(bal/upb) + ' boxes + ' + (bal%upb) + ')';
+    tag.textContent = balText;
+    qtyInput.max = bal;
+    // Brand warning toast
+    if (opt.dataset.brandTier === 'flagged') {
+      toast('⚠ FLAGGED BRAND: ' + opt.dataset.name + (opt.dataset.brand ? ' (' + opt.dataset.brand + ')' : '') + ' — low quality / unapproved brand. Check with GM before dispensing.', 'err');
+    }
   } else {
     tag.textContent = 'Bal: —';
     qtyInput.removeAttribute('max');
@@ -3478,7 +3588,7 @@ function collectMeds(){
     const opt = sel.options[sel.selectedIndex];
     const bal = parseInt(opt.dataset.balance, 10);
     if (qty > bal) { err = opt.dataset.name + ': only ' + bal + ' in stock'; return; }
-    out.push({ sno: sel.value, name: opt.dataset.name, qty: qty });
+    out.push({ sno: sel.value, name: opt.dataset.name, qty: qty, brand: opt.dataset.brand || '', brandTier: opt.dataset.brandTier || 'preferred' });
   });
   if (err) throw new Error(err);
   return out;
@@ -3668,6 +3778,20 @@ function exportVisitsCsv(){
 }
 
 // ============== STOCK TAB ==============
+function balDisplay(m) {
+  if (!m.unitsPerBox || m.unitsPerBox <= 1) return m.balance;
+  const boxes = Math.floor(m.balance / m.unitsPerBox);
+  const rem = m.balance % m.unitsPerBox;
+  return m.balance + '<br><span style="font-size:10px;color:#94a3b8">' + boxes + ' box' + (boxes !== 1 ? 'es' : '') + (rem ? ' +' + rem : '') + '</span>';
+}
+
+function brandBadge(m) {
+  if (!m.brand && (!m.brandTier || m.brandTier === 'preferred')) return '—';
+  const tierCls = { preferred: 'pill-ok', acceptable: 'pill-low', flagged: 'pill-critical' }[m.brandTier] || 'pill-ok';
+  const tierLbl = { preferred: 'PREFERRED', acceptable: 'ACCEPTABLE', flagged: '⚠ FLAGGED' }[m.brandTier] || m.brandTier.toUpperCase();
+  return (m.brand ? escapeHtml(m.brand) + '<br>' : '') + '<span class="pill ' + tierCls + '">' + tierLbl + '</span>';
+}
+
 async function reloadStock(){
   try {
     const r = await apiCall('getStockLevels');
@@ -3707,10 +3831,11 @@ function renderStockTable(){
       '<td>' + m.sno + '</td>' +
       '<td><strong>' + escapeHtml(m.name) + '</strong>' + (m.genericName ? '<br><span style="font-size:11px;color:#94a3b8">' + escapeHtml(m.genericName) + '</span>' : '') + '</td>' +
       '<td>' + escapeHtml(CATEGORY_LABELS[m.category] || m.category) + '</td>' +
-      '<td class="num">' + m.balance + '</td>' +
+      '<td class="num">' + balDisplay(m) + '</td>' +
       '<td class="num">' + m.effectiveMin + '</td>' +
       '<td class="num">' + m.effectivePar + '</td>' +
       '<td><span class="pill ' + pillCls + '">' + pillLbl + '</span></td>' +
+      '<td>' + brandBadge(m) + '</td>' +
       '<td>' + (m.expiryFlag ? '<span class="pill pill-expiry">' + escapeHtml(m.expiryFlag) + '</span>' : '—') + '</td>' +
       '<td class="row-actions">' +
         '<button onclick="openEditMedicine(' + m.sno + ')">Edit</button>' +
@@ -3719,7 +3844,7 @@ function renderStockTable(){
   }).join('');
 
   wrap.innerHTML = '<table class="data-table"><thead><tr>' +
-    '<th>#</th><th>Name</th><th>Category</th><th>Balance</th><th>Min</th><th>Par</th><th>Status</th><th>Expiry</th><th></th>' +
+    '<th>#</th><th>Name</th><th>Category</th><th>Balance</th><th>Min</th><th>Par</th><th>Status</th><th>Brand</th><th>Expiry</th><th></th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
@@ -3735,6 +3860,9 @@ function exportStockCsv(){
 function openEditMedicine(sno){
   const m = state.stock.find(function(x){ return x.sno === sno; });
   if (!m) return;
+  const brandTierOpts = ['preferred','acceptable','flagged'].map(function(t){
+    return '<option value="' + t + '"' + (t === (m.brandTier || 'preferred') ? ' selected' : '') + '>' + t.charAt(0).toUpperCase() + t.slice(1) + '</option>';
+  }).join('');
   const html =
     '<div class="field"><label>Name</label><input type="text" id="em_name" value="' + escapeAttr(m.name) + '" /></div>' +
     '<div class="field"><label>Generic Name</label><input type="text" id="em_generic" value="' + escapeAttr(m.genericName || '') + '" /></div>' +
@@ -3744,6 +3872,20 @@ function openEditMedicine(sno){
     '<div class="grid-2">' +
       '<div class="field"><label>Override Min (blank = use category default ' + m.defaultMin + ')</label><input type="number" id="em_min" value="' + (m.overrideMin !== '' && m.overrideMin !== null ? m.overrideMin : '') + '" /></div>' +
       '<div class="field"><label>Override Par (blank = use category default ' + m.defaultPar + ')</label><input type="number" id="em_par" value="' + (m.overridePar !== '' && m.overridePar !== null ? m.overridePar : '') + '" /></div>' +
+    '</div>' +
+    '<hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0"/>' +
+    '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#0d9488;margin-bottom:8px">Brand Tracking</div>' +
+    '<div class="grid-2">' +
+      '<div class="field"><label>Brand / Manufacturer</label><input type="text" id="em_brand" value="' + escapeAttr(m.brand || '') + '" placeholder="e.g. GSK, Getz, Searle" /></div>' +
+      '<div class="field"><label>Brand Tier</label><select id="em_brandTier">' + brandTierOpts + '</select>' +
+        (m.brandTier === 'flagged' ? '<div style="font-size:11px;color:#dc2626;margin-top:4px">⚠ This brand is currently flagged. Doctors will be warned on dispense.</div>' : '') +
+      '</div>' +
+    '</div>' +
+    '<hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0"/>' +
+    '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#0d9488;margin-bottom:8px">Box / Unit Configuration</div>' +
+    '<div class="grid-2">' +
+      '<div class="field"><label>Units per Box</label><input type="number" id="em_upb" value="' + (m.unitsPerBox || 1) + '" min="1" placeholder="e.g. 10 for a strip of 10 tabs" /></div>' +
+      '<div class="field"><label>Box Label (display)</label><input type="text" id="em_boxlabel" value="' + escapeAttr(m.boxSizeLabel || '') + '" placeholder="e.g. Strip of 10, Box of 5 vials" /></div>' +
     '</div>' +
     '<div class="field"><label>Expiry Flag / Date Note</label><input type="text" id="em_expiry" value="' + escapeAttr(m.expiryFlag || '') + '" placeholder="e.g. Expires May 2026" /></div>' +
     '<div class="field"><label>Remarks</label><input type="text" id="em_remarks" value="' + escapeAttr(m.remarks || '') + '" /></div>' +
@@ -3766,6 +3908,10 @@ async function saveEditMedicine(sno){
       overridePar: document.getElementById('em_par').value,
       expiryFlag: document.getElementById('em_expiry').value,
       remarks: document.getElementById('em_remarks').value,
+      brand: document.getElementById('em_brand').value,
+      brandTier: document.getElementById('em_brandTier').value,
+      unitsPerBox: document.getElementById('em_upb').value,
+      boxSizeLabel: document.getElementById('em_boxlabel').value,
       actor: 'Admin'
     };
     await apiCall('updateMedicine', payload, { pin: getPin() });
@@ -3910,17 +4056,50 @@ async function doSeed(){
 async function doReceive(){
   try {
     const sno = document.getElementById('recvMedicine').value;
-    const qty = parseInt(document.getElementById('recvQty').value);
-    if (!sno || !qty || qty < 1) return toast('Select medicine and qty', 'err');
-    const r = await apiCall('stockReceive', {
-      sno: sno, qty: qty, reason: document.getElementById('recvReason').value, actor: 'Admin'
-    }, { pin: getPin() });
-    toast(r.data.name + ': ' + r.data.balBefore + ' → ' + r.data.balAfter, 'ok');
+    if (!sno) return toast('Select a medicine', 'err');
+    const recvMode = document.getElementById('recvMode').value;
+    const med = state.medicineList.find(function(m){ return String(m.sno) === String(sno); });
+    const upb = med ? (med.unitsPerBox || 1) : 1;
+    let payload = { sno: sno, reason: document.getElementById('recvReason').value, actor: 'Admin' };
+    if (recvMode === 'boxes' && upb > 1) {
+      const boxes = parseInt(document.getElementById('recvBoxes').value);
+      if (!boxes || boxes < 1) return toast('Enter number of boxes received', 'err');
+      payload.boxes = boxes;
+      payload.unitsPerBox = upb;
+    } else {
+      const qty = parseInt(document.getElementById('recvQty').value);
+      if (!qty || qty < 1) return toast('Enter quantity', 'err');
+      payload.qty = qty;
+    }
+    const r = await apiCall('stockReceive', payload, { pin: getPin() });
+    toast(r.data.name + ': ' + r.data.balBefore + ' → ' + r.data.balAfter + ' units', 'ok');
     document.getElementById('recvQty').value = '';
     document.getElementById('recvReason').value = '';
+    if (document.getElementById('recvBoxes')) document.getElementById('recvBoxes').value = '';
     await loadMedicineList();
     populateConfigSelects();
+    updateRecvModeUI();
   } catch(e) { toast(e.message, 'err'); }
+}
+
+function updateRecvModeUI(){
+  const sno = document.getElementById('recvMedicine').value;
+  const mode = document.getElementById('recvMode') ? document.getElementById('recvMode').value : 'units';
+  const med = state.medicineList.find(function(m){ return String(m.sno) === String(sno); });
+  const upb = med ? (med.unitsPerBox || 1) : 1;
+  const boxRow = document.getElementById('recvBoxRow');
+  const unitRow = document.getElementById('recvUnitRow');
+  const upbInfo = document.getElementById('recvUpbInfo');
+  if (!boxRow || !unitRow) return;
+  if (mode === 'boxes' && upb > 1) {
+    boxRow.style.display = 'block';
+    unitRow.style.display = 'none';
+    if (upbInfo) upbInfo.textContent = upb + ' units per box';
+  } else {
+    boxRow.style.display = 'none';
+    unitRow.style.display = 'block';
+    if (upbInfo) upbInfo.textContent = upb > 1 ? '(' + upb + ' units/box configured)' : '';
+  }
 }
 
 async function doAdjustment(){
@@ -3951,6 +4130,10 @@ async function doAddMedicine(){
       unitType: document.getElementById('newMedUnit').value,
       category: document.getElementById('newMedCat').value,
       balance: parseInt(document.getElementById('newMedBal').value) || 0,
+      brand: document.getElementById('newMedBrand').value.trim(),
+      brandTier: document.getElementById('newMedBrandTier').value,
+      unitsPerBox: parseInt(document.getElementById('newMedUpb').value) || 1,
+      boxSizeLabel: document.getElementById('newMedBoxLabel').value.trim(),
       actor: 'Admin'
     };
     if (!payload.name) return toast('Name required', 'err');
@@ -3959,9 +4142,208 @@ async function doAddMedicine(){
     document.getElementById('newMedName').value = '';
     document.getElementById('newMedGeneric').value = '';
     document.getElementById('newMedBal').value = '0';
+    document.getElementById('newMedBrand').value = '';
+    document.getElementById('newMedUpb').value = '1';
+    document.getElementById('newMedBoxLabel').value = '';
     await loadMedicineList();
     reloadStock();
   } catch(e) { toast(e.message, 'err'); }
+}
+
+
+// ============== BULK STOCK UPLOAD ==============
+async function handleBulkFile(input){
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('bulkStatus');
+  statusEl.textContent = 'Reading file…';
+  statusEl.className = 'inline-status';
+
+  try {
+    let rows = [];
+    const name = file.name.toLowerCase();
+
+    if (name.endsWith('.csv')) {
+      const text = await file.text();
+      rows = parseCsvBulk(text);
+    } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+      rows = await parseXlsxBulk(file);
+    } else {
+      throw new Error('Only .csv or .xlsx files supported');
+    }
+
+    if (!rows.length) throw new Error('No data rows found in file');
+    renderBulkPreview(rows);
+    statusEl.textContent = rows.length + ' rows parsed. Review below and confirm.';
+    statusEl.className = 'inline-status ok';
+  } catch(e) {
+    statusEl.textContent = 'Error: ' + e.message;
+    statusEl.className = 'inline-status err';
+  }
+}
+
+function parseCsvBulk(text){
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(function(h){ return h.trim().toLowerCase().replace(/[^a-z0-9]/g,''); });
+  const snoIdx = headers.findIndex(function(h){ return h === 'sno' || h === 'sno'; });
+  const nameIdx = headers.findIndex(function(h){ return h.includes('name') || h.includes('particular'); });
+  const qtyIdx = headers.findIndex(function(h){ return h.includes('qty') || h.includes('quantity') || h.includes('balance') || h.includes('received') || h.includes('stock'); });
+  if (nameIdx === -1 && snoIdx === -1) throw new Error('File must have a Name or SNO column');
+  if (qtyIdx === -1) throw new Error('File must have a Qty/Quantity/Balance column');
+  return lines.slice(1).map(function(line, i){
+    const cols = line.split(',').map(function(c){ return c.trim().replace(/^"|"$/g,''); });
+    const name = nameIdx > -1 ? cols[nameIdx] : '';
+    const sno = snoIdx > -1 ? cols[snoIdx] : '';
+    const qty = parseFloat(cols[qtyIdx]) || 0;
+    if (!name && !sno) return null;
+    if (qty <= 0) return null;
+    return { sno: sno, name: name, qty: qty, _row: i + 2 };
+  }).filter(Boolean);
+}
+
+async function parseXlsxBulk(file){
+  return new Promise(function(resolve, reject){
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try {
+        const data = new Uint8Array(e.target.result);
+        // Simple XLSX parser: look for shared strings and sheet data
+        // Since we don't have SheetJS loaded, parse as binary and extract text
+        // Fallback: instruct user to save as CSV
+        reject(new Error('For Excel files, please save as CSV first (File > Save As > CSV). CSV upload works directly.'));
+      } catch(err){ reject(err); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function renderBulkPreview(rows){
+  state.bulkRows = rows;
+  const host = document.getElementById('bulkPreview');
+  // Match against medicine list
+  const matched = [], unmatched = [];
+  rows.forEach(function(r){
+    const med = state.medicineList.find(function(m){
+      if (r.sno && String(m.sno) === String(r.sno)) return true;
+      if (r.name) return m.name.toLowerCase().trim() === r.name.toLowerCase().trim();
+      return false;
+    });
+    if (med) matched.push({ ...r, medName: med.name, medSno: med.sno, currentBal: med.balance });
+    else unmatched.push(r);
+  });
+  state.bulkMatched = matched;
+
+  let html = '';
+  if (matched.length) {
+    html += '<div style="font-weight:700;color:#16a34a;margin-bottom:6px;font-size:12px">✓ ' + matched.length + ' medicines matched</div>';
+    html += '<table class="data-table" style="margin-bottom:14px"><thead><tr><th>#</th><th>Medicine</th><th>Current Bal</th><th>Adding</th><th>New Bal</th></tr></thead><tbody>';
+    matched.forEach(function(r){
+      html += '<tr><td>' + escapeHtml(String(r.medSno)) + '</td><td>' + escapeHtml(r.medName) + '</td>' +
+        '<td class="num">' + r.currentBal + '</td>' +
+        '<td class="num" style="color:#16a34a;font-weight:700">+' + r.qty + '</td>' +
+        '<td class="num" style="font-weight:700">' + (r.currentBal + r.qty) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  if (unmatched.length) {
+    html += '<div style="font-weight:700;color:#dc2626;margin-bottom:6px;font-size:12px">⚠ ' + unmatched.length + ' rows not matched (will be skipped)</div>';
+    html += '<table class="data-table"><thead><tr><th>Row</th><th>Name / SNO in file</th><th>Qty</th></tr></thead><tbody>';
+    unmatched.forEach(function(r){
+      html += '<tr style="background:#fee2e2"><td>' + r._row + '</td><td>' + escapeHtml(r.name || String(r.sno)) + '</td><td>' + r.qty + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+
+  host.innerHTML = html;
+  document.getElementById('bulkConfirmBtn').style.display = matched.length ? 'inline-flex' : 'none';
+}
+
+async function confirmBulkUpload(){
+  if (!state.bulkMatched || !state.bulkMatched.length) return toast('Nothing to upload', 'err');
+  const btn = document.getElementById('bulkConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  try {
+    const reason = document.getElementById('bulkReason').value || 'Bulk stock upload';
+    const payload = {
+      rows: state.bulkMatched.map(function(r){ return { sno: r.medSno, name: r.medName, qty: r.qty }; }),
+      reason: reason,
+      actor: 'Admin'
+    };
+    const r = await apiCall('bulkStockUpload', payload, { pin: getPin() });
+    const d = r.data;
+    let msg = '✓ ' + d.updated.length + ' medicines updated.';
+    if (d.notFound.length) msg += ' ' + d.notFound.length + ' not found.';
+    if (d.errors.length) msg += ' ' + d.errors.length + ' errors.';
+    toast(msg, 'ok');
+    document.getElementById('bulkStatus').textContent = msg;
+    document.getElementById('bulkStatus').className = 'inline-status ok';
+    document.getElementById('bulkPreview').innerHTML = '';
+    document.getElementById('bulkConfirmBtn').style.display = 'none';
+    document.getElementById('bulkFileInput').value = '';
+    state.bulkMatched = [];
+    await loadMedicineList();
+    populateConfigSelects();
+  } catch(e) {
+    toast(e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirm and Upload All';
+  }
+}
+
+
+// ============== STOCK MOVEMENTS TAB ==============
+async function reloadMovements(){
+  try {
+    const r = await apiCall('getMovements', null, { limit: 300 });
+    state.movements = r.data;
+    renderMovementLog();
+  } catch(e) { toast('Movement log load failed: ' + e.message, 'err'); }
+}
+
+function renderMovementLog(){
+  if (!state.movements) { reloadMovements(); return; }
+  const typeF = document.getElementById('movLogType') ? document.getElementById('movLogType').value : '';
+  const search = document.getElementById('movLogSearch') ? document.getElementById('movLogSearch').value.toLowerCase() : '';
+  let rows = state.movements.filter(function(m){
+    if (typeF && m.type !== typeF) return false;
+    if (search && (m.medicineName + ' ' + (m.reason||'')).toLowerCase().indexOf(search) === -1) return false;
+    return true;
+  });
+  const wrap = document.getElementById('movLogWrap');
+  if (!wrap) return;
+  if (!rows.length) { wrap.innerHTML = '<div class="empty-state">No movements match filters.</div>'; return; }
+  const typeColors = { IN: 'pill-ok', OUT: 'pill-low', ADJUST: 'pill-staff' };
+  const tableRows = rows.map(function(m){
+    const pillCls = typeColors[m.type] || 'pill-ok';
+    const qtyDisplay = m.type === 'IN' ? '+' + m.quantity : (m.type === 'OUT' ? '-' + m.quantity : m.quantity);
+    const qtyColor = m.type === 'IN' ? '#16a34a' : (m.type === 'OUT' ? '#dc2626' : '#64748b');
+    return '<tr>' +
+      '<td>' + escapeHtml(m.movementDate || '') + '</td>' +
+      '<td><span class="pill ' + pillCls + '">' + escapeHtml(m.type) + '</span></td>' +
+      '<td><strong>' + escapeHtml(m.medicineName || '') + '</strong></td>' +
+      '<td class="num" style="color:' + qtyColor + ';font-weight:700">' + qtyDisplay + '</td>' +
+      '<td class="num">' + escapeHtml(String(m.balanceBefore ?? '')) + '</td>' +
+      '<td class="num">' + escapeHtml(String(m.balanceAfter ?? '')) + '</td>' +
+      '<td>' + escapeHtml(m.reason || '—') + '</td>' +
+      '<td>' + escapeHtml(m.actorName || '—') + '</td>' +
+    '</tr>';
+  }).join('');
+  wrap.innerHTML = '<table class="data-table"><thead><tr>' +
+    '<th>Date/Time</th><th>Type</th><th>Medicine</th><th>Qty</th><th>Bal Before</th><th>Bal After</th><th>Reason</th><th>Actor</th>' +
+    '</tr></thead><tbody>' + tableRows + '</tbody></table>';
+}
+
+function exportMovementsCsv(){
+  if (!state.movements || !state.movements.length) return toast('Load movements first', 'err');
+  const cols = ['movementId','movementDate','type','medicineName','quantity','balanceBefore','balanceAfter','reason','linkedVisitId','actorName'];
+  const header = cols.join(',');
+  const body = state.movements.map(function(m){
+    return cols.map(function(c){ return csvCell(m[c]); }).join(',');
+  }).join('\n');
+  downloadCsv('stock_movements_' + todayStr() + '.csv', header + '\n' + body);
 }
 
 async function loadAudit(){
