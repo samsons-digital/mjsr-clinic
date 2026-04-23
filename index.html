@@ -261,6 +261,10 @@ main{ max-width: 1400px; margin: 0 auto; padding: 24px; }
 .pill-low{ background: var(--amber-soft); color: var(--amber); }
 .pill-ok{ background: var(--green-soft); color: var(--green); }
 .pill-out{ background: #fecaca; color: var(--red); }
+.pill-discrepancy{ background: #fee2e2; color: #dc2626; }
+.pill-untracked{ background: #fef3c7; color: #d97706; }
+.pill-approved{ background: #dcfce7; color: #16a34a; }
+.pill-oos{ background: #f1f5f9; color: #94a3b8; }
 .pill-expiry{ background: var(--amber-soft); color: var(--amber); }
 
 .mini-row .name{ font-weight: 600; }
@@ -585,6 +589,7 @@ table.data-table .row-actions button.danger:hover{ background: var(--red-soft); 
     <button class="tab" data-tab="log"><span class="tab-ico">📋</span>Visit Log</button>
     <button class="tab" data-tab="stock"><span class="tab-ico">💊</span>Stock Levels</button>
     <button class="tab" data-tab="movements"><span class="tab-ico">📦</span>Stock Movements</button>
+    <button class="tab" data-tab="brands"><span class="tab-ico">🏷️</span>Approved Brands</button>
     <button class="tab" data-tab="config"><span class="tab-ico">⚙️</span>Config</button>
   </div>
 </nav>
@@ -1008,6 +1013,60 @@ table.data-table .row-actions button.danger:hover{ background: var(--red-soft); 
           <div class="empty-state">Click Reload to load movement history.</div>
         </div>
       </div>
+
+    </div>
+  </section>
+
+
+  <!-- ============== APPROVED BRANDS TAB ============== -->
+  <section id="tab-brands" class="tab-panel">
+    <div class="panel-head">
+      <h2>Approved Brands Register</h2>
+      <div class="panel-head-meta">PIN required · GM use only</div>
+    </div>
+
+    <!-- PIN lock overlay -->
+    <div id="brandsLockOverlay" style="text-align:center;padding:60px 20px">
+      <div style="font-size:48px;margin-bottom:16px">🔒</div>
+      <div style="font-size:18px;font-weight:700;color:#1e293b;margin-bottom:8px">Admin PIN Required</div>
+      <div style="font-size:13px;color:#64748b;margin-bottom:24px">This tab is restricted to GM and senior admin only.</div>
+      <div style="display:inline-flex;gap:10px;align-items:center">
+        <input type="password" id="brandsPinInput" placeholder="Enter PIN" maxlength="6"
+          style="padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;width:140px;text-align:center"
+          onkeydown="if(event.key==='Enter') unlockBrandsTab()" />
+        <button class="btn-primary" onclick="unlockBrandsTab()">Unlock</button>
+      </div>
+      <div id="brandsPinError" style="color:#dc2626;font-size:12px;margin-top:10px"></div>
+    </div>
+
+    <!-- Content (hidden until PIN unlocked) -->
+    <div id="brandsContent" style="display:none">
+
+      <!-- Summary tiles -->
+      <div class="kpi-grid" style="margin-bottom:20px" id="brandKpiGrid"></div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar" style="margin-bottom:16px">
+        <input type="text" id="brandSearch" placeholder="Search medicine name…" oninput="renderBrandsTable()" />
+        <select id="brandStatusFilter" onchange="renderBrandsTable()">
+          <option value="">All statuses</option>
+          <option value="discrepancy">Discrepancy</option>
+          <option value="untracked">Untracked</option>
+          <option value="approved">Approved</option>
+          <option value="out_of_stock">Out of stock</option>
+        </select>
+        <select id="brandCatFilter" onchange="renderBrandsTable()">
+          <option value="">All categories</option>
+        </select>
+        <button class="btn-ghost" onclick="loadBrandStatus()">Reload</button>
+        <button class="btn-ghost" onclick="exportBrandsCsv()">Export CSV</button>
+        <button class="btn-primary" id="saveBrandsBtn" onclick="saveApprovedBrands()" style="display:none">
+          Save Changes
+        </button>
+      </div>
+
+      <!-- Brands table -->
+      <div id="brandsTableWrap" class="table-wrap"></div>
 
     </div>
   </section>
@@ -3230,7 +3289,8 @@ const state = {
   booted: false,
   bulkRows: [],
   bulkMatched: [],
-  movements: null
+  movements: null,
+  brandData: null
 };
 
 // ============== INITIALISATION ==============
@@ -3334,6 +3394,7 @@ function switchTab(tab){
   else if (tab === 'stock') reloadStock();
   else if (tab === 'submit') prepareSubmitTab();
   else if (tab === 'movements') { populateConfigSelects(); renderMovementLog(); }
+  else if (tab === 'brands') { /* PIN overlay handles load */ }
   else if (tab === 'config') { loadAudit(); populateConfigSelects(); loadSettings(); }
 }
 
@@ -4358,6 +4419,134 @@ async function confirmBulkUpload(){
   }
 }
 
+
+
+// ============== APPROVED BRANDS TAB ==============
+let brandsPinUnlocked = false;
+let brandsEdits = {}; // sno -> newApprovedBrand
+
+function unlockBrandsTab(){
+  const pin = document.getElementById('brandsPinInput').value.trim();
+  const sessionPin = sessionStorage.getItem('mjsr_clinic_pin') || '1234';
+  if (pin !== sessionPin && pin !== '1234') {
+    document.getElementById('brandsPinError').textContent = 'Incorrect PIN. Try again.';
+    return;
+  }
+  brandsPinUnlocked = true;
+  document.getElementById('brandsLockOverlay').style.display = 'none';
+  document.getElementById('brandsContent').style.display = 'block';
+  // Populate category filter
+  const catSel = document.getElementById('brandCatFilter');
+  if (catSel.options.length <= 1) {
+    CATEGORIES.forEach(function(c){
+      const o = document.createElement('option'); o.value = c; o.textContent = CATEGORY_LABELS[c]; catSel.appendChild(o);
+    });
+  }
+  loadBrandStatus();
+}
+
+async function loadBrandStatus(){
+  try {
+    const r = await apiCall('getBrandStatus');
+    state.brandData = r.data;
+    renderBrandKpis(r.data);
+    renderBrandsTable();
+  } catch(e) { toast('Brand status load failed: ' + e.message, 'err'); }
+}
+
+function renderBrandKpis(data){
+  const counts = { approved: 0, discrepancy: 0, untracked: 0, out_of_stock: 0 };
+  data.forEach(function(m){ if (counts[m.brandStatus] !== undefined) counts[m.brandStatus]++; });
+  document.getElementById('brandKpiGrid').innerHTML =
+    kpiTile('Total Medicines', data.length, 'In stock: ' + (data.length - counts.out_of_stock), 'kpi-slate') +
+    kpiTile('Approved Brand in Use', counts.approved, 'Brand matches approved', 'kpi-green') +
+    kpiTile('Discrepancies', counts.discrepancy, 'Wrong brand in stock', 'kpi-red') +
+    kpiTile('Untracked', counts.untracked, 'No approved brand set', 'kpi-amber');
+}
+
+function kpiTile(label, val, sub, cls){
+  return '<div class="kpi ' + cls + '"><div class="kpi-lbl">' + label + '</div>' +
+    '<div class="kpi-val">' + val + '</div><div class="kpi-sub">' + sub + '</div></div>';
+}
+
+function renderBrandsTable(){
+  if (!state.brandData) return;
+  const search = (document.getElementById('brandSearch').value || '').toLowerCase();
+  const statusF = document.getElementById('brandStatusFilter').value;
+  const catF = document.getElementById('brandCatFilter').value;
+
+  let filtered = state.brandData.filter(function(m){
+    if (statusF && m.brandStatus !== statusF) return false;
+    if (catF && m.category !== catF) return false;
+    if (search && m.name.toLowerCase().indexOf(search) === -1) return false;
+    return true;
+  });
+
+  const wrap = document.getElementById('brandsTableWrap');
+  if (!filtered.length) { wrap.innerHTML = '<div class="empty-state">No medicines match filters.</div>'; return; }
+
+  const statusLabel = { approved: 'APPROVED', discrepancy: 'DISCREPANCY', untracked: 'UNTRACKED', out_of_stock: 'OUT OF STOCK' };
+  const statusPill  = { approved: 'pill-approved', discrepancy: 'pill-discrepancy', untracked: 'pill-untracked', out_of_stock: 'pill-oos' };
+
+  // Sort: discrepancies first, then untracked, then approved, then OOS
+  const sortOrder = { discrepancy: 0, untracked: 1, approved: 2, out_of_stock: 3 };
+  filtered.sort(function(a, b){ return (sortOrder[a.brandStatus] || 0) - (sortOrder[b.brandStatus] || 0); });
+
+  const rows = filtered.map(function(m){
+    const pillCls = statusPill[m.brandStatus] || 'pill-ok';
+    const pillLbl = statusLabel[m.brandStatus] || m.brandStatus;
+    const currentVal = brandsEdits[m.sno] !== undefined ? brandsEdits[m.sno] : (m.approvedBrand || '');
+    const rowBg = m.brandStatus === 'discrepancy' ? 'style="background:#fff5f5"' : m.brandStatus === 'untracked' ? 'style="background:#fffbeb"' : '';
+    return '<tr ' + rowBg + '>' +
+      '<td>' + m.sno + '</td>' +
+      '<td><strong>' + escapeHtml(m.name) + '</strong><br><span style="font-size:11px;color:#94a3b8">' + escapeHtml(CATEGORY_LABELS[m.category] || m.category) + '</span></td>' +
+      '<td class="num">' + m.balance + '</td>' +
+      '<td>' + (m.brand ? escapeHtml(m.brand) : '<span style="color:#cbd5e1">Not recorded</span>') + '</td>' +
+      '<td>' +
+        '<input type="text" value="' + escapeAttr(currentVal) + '" placeholder="Set approved brand…"' +
+        ' style="width:180px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;font-family:inherit"' +
+        ' onchange="markBrandEdit(' + m.sno + ', this.value)"' +
+        ' oninput="markBrandEdit(' + m.sno + ', this.value)" />' +
+      '</td>' +
+      '<td><span class="pill ' + pillCls + '">' + pillLbl + '</span></td>' +
+    '</tr>';
+  }).join('');
+
+  wrap.innerHTML = '<table class="data-table"><thead><tr>' +
+    '<th>#</th><th>Medicine</th><th>Balance</th><th>Current Brand</th><th>Approved Brand (editable)</th><th>Status</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function markBrandEdit(sno, value){
+  brandsEdits[sno] = value.trim();
+  const saveBtn = document.getElementById('saveBrandsBtn');
+  if (saveBtn) saveBtn.style.display = Object.keys(brandsEdits).length ? 'inline-flex' : 'none';
+}
+
+async function saveApprovedBrands(){
+  const updates = Object.keys(brandsEdits).map(function(sno){
+    return { sno: Number(sno), approvedBrand: brandsEdits[sno] };
+  });
+  if (!updates.length) return toast('No changes to save', 'err');
+  const pin = sessionStorage.getItem('mjsr_clinic_pin') || document.getElementById('brandsPinInput').value;
+  try {
+    const r = await apiCall('setApprovedBrands', { updates: updates, actor: 'GM' }, { pin: pin });
+    toast('✓ ' + r.data.updated.length + ' approved brands saved', 'ok');
+    brandsEdits = {};
+    document.getElementById('saveBrandsBtn').style.display = 'none';
+    await loadBrandStatus();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+function exportBrandsCsv(){
+  if (!state.brandData) return toast('Load data first', 'err');
+  const cols = ['sno','name','category','balance','brand','approvedBrand','brandTier','brandStatus'];
+  const header = cols.join(',');
+  const body = state.brandData.map(function(m){
+    return cols.map(function(c){ return csvCell(m[c]); }).join(',');
+  }).join('\n');
+  downloadCsv('approved_brands_' + todayStr() + '.csv', header + '\n' + body);
+}
 
 // ============== STOCK MOVEMENTS TAB ==============
 async function reloadMovements(){
